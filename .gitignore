@@ -1,0 +1,6 @@
+__pycache__
+.python-version
+notebook.ipynb
+reports
+data
+.pytest_cache
