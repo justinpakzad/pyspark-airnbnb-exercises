@@ -18,12 +18,12 @@ from pyspark.sql.types import (
     LongType,
     DateType,
 )
-from main import (  # type: ignore
+from transform import (
     transform_listings,
     transform_calendar,
     transform_reviews,
 )
-from schemas import reviews_schema, calendar_schema  # type: ignore
+from schemas import reviews_schema, calendar_schema
 
 
 @pytest.fixture(scope="session")
