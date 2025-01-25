@@ -322,7 +322,7 @@ def lowest_occupancy_rate_and_review_scores(df_reviews, df_listings, df_calendar
             df_reviews_filtered.listing_id == df_occ_rates.listing_id,
             how="inner",
         )
-        .drop(df_occ_rates.listing_id, df_listings_filtered.id)
+        .drop(df_reviews_filtered.listing_id, df_listings_filtered.id)
         .withColumns(
             {
                 "occupancy_rnk": f.dense_rank().over(window_occ),
@@ -333,6 +333,7 @@ def lowest_occupancy_rate_and_review_scores(df_reviews, df_listings, df_calendar
         .orderBy("final_rnk")
         .limit(10)
         .drop("final_rnk", "occupancy_rnk", "review_score_rnk")
+        .drop()
     )
     return df_lowest_occ_reviews
 
@@ -577,7 +578,7 @@ def listings_binned_with_stats(df_listings, df_calendar):
         df_avg_prices_binned.join(
             df_review_scores, df_review_scores.id == df_avg_prices_binned.listing_id
         )
-        .groupBy("price_bin")
+        .groupBy("avg_price")
         .agg(
             f.round(f.mean("occupancy_rate"), 2).alias("avg_occupancy_rate"),
             f.round(f.mean("review_scores_rating"), 2).alias(
@@ -599,3 +600,282 @@ def listings_binned_with_stats(df_listings, df_calendar):
     )
 
     return df_avg_prices_binned_with_score
+
+
+def daily_price_changes(df_listings, df_calendar):
+    """
+    Identify listings that actively utilize dynamic pricing strategies.
+    For each listing, calculate the percentage of days in the year where the
+    price changes compared to the previous day.
+    Rank the top 5 listings that exhibit the most frequent price changes.
+    """
+    window_lag = Window.orderBy("date").partitionBy("listing_id")
+    window_rnk = Window.orderBy(f.desc("n_price_changes")).partitionBy(f.lit(0))
+    df_listings_filtered = df_listings.select(
+        "id", "neighbourhood", "review_scores_rating"
+    )
+    df_price_changes = (
+        df_calendar.withColumn("prev_days_price", f.lag("price").over(window_lag))
+        .groupBy("listing_id")
+        .agg(
+            f.sum(
+                f.when(f.col("price") != f.col("prev_days_price"), 1).otherwise(0)
+            ).alias("n_price_changes"),
+            f.round(
+                (
+                    f.sum(
+                        f.when(f.col("price") != f.col("prev_days_price"), 1).otherwise(
+                            0
+                        )
+                    )
+                    / 365
+                )
+                * 100
+            ).alias("pct_of_daily_price_diffs"),
+            f.round(f.mean("price"), 2).alias("avg_price"),
+        )
+        .filter(f.col("n_price_changes") > 0)
+        .withColumn("n_price_changes_rnk", f.dense_rank().over(window_rnk))
+        .filter(f.col("n_price_changes_rnk") <= 5)
+        .drop("n_price_changes_rnk")
+    )
+
+    df_price_changes = df_price_changes.join(
+        df_listings_filtered, df_price_changes.listing_id == df_listings_filtered.id
+    )
+    return df_price_changes
+
+
+def host_verification_performance(df_listings, df_calendar):
+    """
+    Evaluate how host identity verification status impacts booking performance,
+    including proxy booking volume (since we don't directly have booking data),
+    occupancy rates,revenue, and review scores for their listings.
+    """
+    df_listings_filtered = df_listings.select(
+        "id",
+        "host_identity_verified",
+        "review_scores_rating",
+        "host_id",
+        "neighbourhood",
+        "room_type",
+    )
+    df_hosts_agged = df_listings_filtered.groupBy("host_id").agg(
+        f.coalesce(f.round(f.mean("review_scores_rating"), 2), f.lit(0)).alias(
+            "avg_review_score_rating"
+        ),
+        f.max(f.col("host_identity_verified")).alias("host_identity_verified"),
+    )
+    df_occ_rate = compute_occupancy_rate(
+        df_calendar=df_calendar,
+        grouping_columns=["listing_id", f.date_format("date", "MMMM").alias("month")],
+    )
+    df_host_avg_monthly_occ_rate = (
+        df_listings_filtered.join(
+            df_occ_rate, df_listings_filtered.id == df_occ_rate.listing_id
+        )
+        .groupBy("host_id")
+        .agg(f.round(f.mean("occupancy_rate")).alias("avg_monthly_occ_rate"))
+    )
+
+    df_host_avg_monthly_rev = (
+        (
+            df_calendar.groupBy(
+                "listing_id", f.date_format("date", "MMMM").alias("month")
+            )
+            .agg(
+                f.sum(
+                    f.when(f.col("available") == False, f.col("price")).otherwise(0)
+                ).alias("revenue"),
+                f.sum(f.when(f.col("available") == False, 1).otherwise(0)).alias(
+                    "n_bookings"
+                ),
+            )
+            .join(
+                df_listings_filtered, df_calendar.listing_id == df_listings_filtered.id
+            )
+        )
+        .groupBy("host_id")
+        .agg(
+            f.round(f.coalesce(f.mean("revenue"), f.lit(0)), 2).alias(
+                "avg_monthly_revenue"
+            ),
+            f.round(f.mean("n_bookings")).alias("average_monthly_bookings"),
+        )
+    )
+
+    df_hosts_performance = df_host_avg_monthly_occ_rate.join(
+        df_host_avg_monthly_rev,
+        df_host_avg_monthly_occ_rate.host_id == df_host_avg_monthly_rev.host_id,
+    ).drop(df_host_avg_monthly_rev.host_id)
+
+    df_hosts_performance = df_hosts_performance.join(
+        df_hosts_agged, df_hosts_performance.host_id == df_hosts_agged.host_id
+    ).drop(df_hosts_performance.host_id)
+
+    return df_hosts_performance.select(
+        "host_id",
+        f.when(f.col("host_identity_verified") == True, "Verified")
+        .otherwise("Not Verified")
+        .alias("is_verified"),
+        "avg_monthly_occ_rate",
+        "avg_monthly_revenue",
+        "average_monthly_bookings",
+        "avg_review_score_rating",
+    )
+
+
+def host_tier_revenue_trends(df_listings, df_calendar):
+    """
+    Analyze the performance of hosts by categorizing them into
+    tiers based on the total number of listings they manage.
+    Evaluate how these tiers correlate with total revenue, review scores,
+    and listing diversity
+    """
+    window = Window.orderBy(
+        f.desc("total_revenue"), f.desc("n_properties")
+    ).partitionBy(f.lit(0))
+    df_hosts_binned = (
+        df_listings.groupBy("host_id")
+        .agg(
+            f.count_distinct("id").alias("n_properties"),
+            f.coalesce(f.round(f.mean("review_scores_rating"), 2), f.lit(0)).alias(
+                "avg_review_score_rating"
+            ),
+            f.count_distinct("room_type").alias("n_room_types"),
+            f.count_distinct("property_type").alias("n_property_types"),
+            f.count_distinct("neighbourhood").alias("n_neighbourhoods"),
+        )
+        .withColumn(
+            "n_listings_bin",
+            f.when(f.col("n_properties").between(1, 5), "Small")
+            .when(f.col("n_properties").between(6, 15), "Medium")
+            .otherwise("Large"),
+        )
+    )
+
+    df_occ_rates = compute_occupancy_rate(df_calendar, ["listing_id"])
+    df_revenue = df_calendar.groupBy("listing_id").agg(
+        f.sum(f.when(f.col("available") == False, f.col("price")).otherwise(0)).alias(
+            "total_revenue"
+        )
+    )
+    df_listings_filtered = df_listings.select("id", "host_id")
+
+    df_host_stats = (
+        df_listings_filtered.join(
+            df_occ_rates, df_listings_filtered.id == df_occ_rates.listing_id
+        )
+        .drop(df_occ_rates.listing_id)
+        .join(df_revenue, df_listings_filtered.id == df_revenue.listing_id)
+        .drop(df_listings_filtered.id)
+        .groupBy("host_id")
+        .agg(
+            f.sum("total_revenue").alias("total_revenue"),
+            f.round(f.mean("occupancy_rate"), 2).alias("avg_occupancy_rate"),
+        )
+    )
+    df_hosts_binned_with_rnks = (
+        df_hosts_binned.join(
+            df_host_stats, df_hosts_binned.host_id == df_host_stats.host_id
+        )
+        .drop(df_host_stats.host_id)
+        .withColumn("rnk", f.dense_rank().over(window))
+    )
+
+    return df_hosts_binned_with_rnks
+
+
+def neighbourhood_group_performance(df_listings, df_calendar):
+    """
+    Rank neighborhood groups by their total revenue contribution and
+    analyze how listing diversity (room types and property types) and
+    occupancy rates contribute to revenue variations across groups.
+    """
+    window = Window.orderBy(f.desc("total_revenue")).partitionBy(f.lit(0))
+    df_occ_rate = compute_occupancy_rate(df_calendar, grouping_columns=["listing_id"])
+    df_revenue = df_calendar.groupBy("listing_id").agg(
+        f.sum(f.when(f.col("available") == False, f.col("price")).otherwise(0)).alias(
+            "revenue"
+        )
+    )
+    df_rev_occ_rate = df_occ_rate.join(
+        df_revenue, df_occ_rate.listing_id == df_revenue.listing_id
+    ).drop(df_revenue.listing_id)
+
+    df_listings_filtered = df_listings.select(
+        "neighbourhood_group",
+        "id",
+        "room_type",
+        "property_type",
+        "review_scores_rating",
+        "review_scores_cleanliness",
+        "review_scores_checkin",
+        "review_scores_communication",
+    )
+    df_neighbourhoods_agged = (
+        df_listings_filtered.join(
+            df_rev_occ_rate, df_listings_filtered.id == df_rev_occ_rate.listing_id
+        )
+        .drop(df_listings_filtered.id)
+        .filter(f.col("neighbourhood_group").isNotNull())
+        .groupBy("neighbourhood_group")
+        .agg(
+            f.round(f.mean("occupancy_rate"), 2).alias("avg_occupancy_rate"),
+            f.sum("revenue").alias("total_revenue"),
+            f.round(f.mean("review_scores_rating")).alias("avg_review_score_rating"),
+            f.round(f.mean("review_scores_cleanliness")).alias(
+                "avg_review_score_cleanliness"
+            ),
+            f.round(f.mean("review_scores_checkin")).alias("avg_review_score_checkin"),
+            f.round(f.mean("review_scores_communication")).alias(
+                "avg_review_score_communication"
+            ),
+            f.count_distinct("room_type").alias("n_unique_room_types"),
+            f.count_distinct("property_type").alias("n_unique_property_types"),
+        )
+        .withColumn("revenue_rank", f.dense_rank().over(window))
+    )
+    return df_neighbourhoods_agged
+
+
+def property_type_trends(df_listings, df_calendar):
+    window = Window.orderBy(f.desc("price_to_performance_ratio")).partitionBy(f.lit(0))
+    df_occ_rate = compute_occupancy_rate(df_calendar, grouping_columns=["listing_id"])
+    df_avg_prices = df_calendar.groupBy("listing_id").agg(
+        f.round(f.mean("price"), 2).alias("avg_price")
+    )
+    df_listings_filtered = df_listings.select(
+        "property_type", "id", "review_scores_rating"
+    )
+    df_prices_occ_rate = df_occ_rate.join(
+        df_avg_prices, df_occ_rate.listing_id == df_avg_prices.listing_id
+    ).drop(df_avg_prices.listing_id)
+
+    df_property_type_agged = (
+        df_listings_filtered.join(
+            df_prices_occ_rate, df_listings_filtered.id == df_prices_occ_rate.listing_id
+        )
+        .drop(df_listings_filtered.id)
+        .groupBy("property_type")
+        .agg(
+            f.round(f.mean("review_scores_rating"), 2).alias("avg_review_score_rating"),
+            f.round(f.mean("occupancy_rate"), 2).alias("avg_occupancy_rate"),
+            f.round(f.mean("avg_price"), 2).alias("avg_price"),
+        )
+        .withColumn(
+            "performance_score",
+            f.round(
+                (f.col("avg_review_score_rating") * 0.6)
+                + (f.col("avg_occupancy_rate") * 0.4),
+                2,
+            ),
+        )
+        .withColumn(
+            "price_to_performance_ratio",
+            f.round(f.col("avg_price") / f.col("performance_score"), 2),
+        )
+        .withColumn("rank", f.dense_rank().over(window))
+    )
+
+    return df_property_type_agged
