@@ -65,6 +65,14 @@ def write_df_to_csv(df, folder, file_name):
         logging.error(f"Failed to write {file_name}: {e}")
 
 
+def write_df_to_s3(df, bucket, file_name):
+    try:
+        df.coalesce(1).write.csv(f"s3a://{bucket}/reports/{file_name}", header=True)
+        logging.info(f"Succesfully wrote {file_name}")
+    except Exception as e:
+        logging.error(f"Failed to write {file_name}: {e}")
+
+
 def clean_folder(folder):
     for file_path in folder.rglob("*"):
         if file_path.name.startswith("_") or file_path.suffix == ".crc":
@@ -77,20 +85,3 @@ def rename_files(folder):
         proper_file_name = f'{"".join(str(csv_file).split("/")[-2])}.csv'
         full_path = f"{folder}/{proper_file_name}"
         csv_file.rename(full_path)
-
-
-def write_object_to_s3(s3, bucket, file_name, data):
-    try:
-        response = s3.upload_fileobj(Bucket=bucket, Key=file_name, Fileobj=data)
-        return response
-    except ClientError as e:
-        logging.error(f"Error writing object: {e}")
-        return None
-
-
-def write_df_to_s3(s3, df, bucket, file_name):
-    file_buffer = StringIO()
-    df.coalesce(1).toPandas().to_csv(file_buffer, header=True, index_label=False)
-    file_buffer.seek(0)
-    bytes_buffer = BytesIO(file_buffer.getvalue().encode("utf-8"))
-    write_object_to_s3(s3, bucket=bucket, file_name=file_name, data=bytes_buffer)

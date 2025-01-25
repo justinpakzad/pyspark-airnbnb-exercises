@@ -20,7 +20,10 @@ git clone https://github.com/justinpakzad/pyspark-airnbnb-exercises
 ```
 pip install -r requirements.txt
 ```
-
+3. Create a directory for the data and .env file (optional for s3)
+```
+mkdir -p data src && touch src/.env
+```
 ## Examples
 1. Run Tests
 ```
@@ -28,8 +31,10 @@ pytest test_transformations.py
 ```
 2. Generate Reports
 ```
-python main.py
+python main.py --write_to_s3 (optional)
 ```
+
+**Note**: To enable writing to S3, credentials must be configured in a `.env` file.
 
 ## Exercises
 
