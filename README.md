@@ -1,5 +1,5 @@
 # PySpark Airbnb Exercises
-To get more familiar with PySpark, I had chat-GPT generate some sample exercises based on the Airbnb dataset, which you can find [here](https://insideairbnb.com/get-the-data/). There are various tasks here involving cleaning, transforming, and analyzing the dataset. I chose to use data from New York City, Los Angeles,San Francisco, and Chicago; if you want to give them a go, you can choose data from any city/cities you are interested in.
+To get more familiar with PySpark, I had chat-GPT generate some sample exercises based on the Airbnb dataset, which you can find [here](https://insideairbnb.com/get-the-data/). There are various tasks here involving cleaning, transforming, and analyzing the dataset. I chose to use data from New York City, Los Angeles,San Francisco, and Chicago; if you want to give them a go, you can choose data from any city/cities you are interested in. For extra practice, push the reports directly to an S3 bucket instead of saving them locally to disk.
 
 ## Project Structure
 - `src/` - 
