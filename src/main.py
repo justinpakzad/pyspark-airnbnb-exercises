@@ -14,10 +14,7 @@ logging.basicConfig(
 
 def main():
     spark = (
-        SparkSession.builder.appName("LearningSpark")
-        .config("spark.driver.memory", "8g")
-        .config("spark.executor.memory", "32g")
-        .getOrCreate()
+        SparkSession.builder.master("local[*]").appName("AirbnbExercises").getOrCreate()
     )
     parent_folder_path = Path.cwd().parents[0]
     df_listings = spark.read.csv(
