@@ -4,3 +4,4 @@ notebook.ipynb
 reports
 data
 .pytest_cache
+.env

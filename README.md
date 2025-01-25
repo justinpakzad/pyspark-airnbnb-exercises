@@ -2,13 +2,13 @@
 To get more familiar with PySpark, I had chat-GPT generate some sample exercises based on the Airbnb dataset, which you can find [here](https://insideairbnb.com/get-the-data/). There are various tasks here involving cleaning, transforming, and analyzing the dataset. I chose to use data from New York City, Los Angeles,San Francisco, and Chicago; if you want to give them a go, you can choose data from any city/cities you are interested in.
 
 ## Project Structure
-- `src/` - Source code for the project
+- `src/` - 
   - `analytics.py` - Contains analytics and aggregation logic
-  - `main.py` - Main entry point for running the application
-  - `schemas.py` - Defines schemas for the input data
+  - `main.py` - Main entry point for running the Spark application
+  - `schemas.py` - Schemas for the input data
   - `transform.py` - Data transformation and cleaning logic
-  - `utils.py` - Utility functions for file handling and common operations
-- `tests/` - Tests for the exercises
+  - `utils.py` - Utility functions 
+- `tests/` - 
   - `test_transformations.py` - Unit tests for transformations
 
 ## Setup
@@ -124,36 +124,35 @@ python main.py
 
 
 
-### 16. Variability of Average Prices Over Time by Listing
-- **Objective:** Analyze how the average prices of listings vary over time. Identify listings with the most price variability month-over-month.
-- **Output:** Save a report showing listing IDs, average monthly prices, and variance in price over the year.
+### 16. Daily Price Changes
+- **Objective:** Identify listings that actively utilize dynamic pricing strategies. For each listing, calculate the percentage of days in the year where the price changes compared to the previous day. Rank the top 5 listings that exhibit the most frequent price changes.
+
+- **Output:** Save a report showing listing IDs, neighborhoods, total number of price changes, percentage of days with price changes, and average price.
 
 
 
-### 17. Effect of Host Identity Verification on Booking Volume
-- **Objective:** Evaluate how host identity verification status impacts the booking volume (number of bookings) for their listings.
-- **Output:** Save a report showing host IDs, their verification status, and total bookings per month.
+### 17. Effect of Host Identity Verification on Booking Performance  
+- **Objective:** Evaluate how host identity verification status impacts booking performance, including proxy booking volume (since we don't directly have booking data), occupancy rates,revenue, and review scores for their listings.
+
+- **Output:** Save a report showing host IDs, their verification status, total bookings per month, average monthly occupancy rate, and average monthly revenue.
 
 
 
-### 18. Correlation Between Review Scores and Host Profile Completeness
-- **Objective:** Determine if there is a correlation between detailed host profiles (profile picture, verified identity) and their review scores.
-- **Output:** Save a report showing host IDs, presence of profile picture, identity verification status, and average review scores.
+
+### 18. Host Tier Analysis and Revenue Trends  
+- **Objective:** Analyze the performance of hosts by categorizing them into tiers based on the total number of listings they manage (e.g., Small: 1-5, Medium: 6-15, Large: 16+). Evaluate how these tiers correlate with total revenue, review scores, and listing diversity (number of room types and neighborhoods). 
+
+- **Output:** Save a report showing host IDs, host tier (Small, Medium, Large), total listings managed, total revenue, average review score, average occupancy rate, number of unique room types, number of unique neighborhoods, and rank within tier based on total revenue and total properties.  
 
 
 
-### 19. Listing Density and Its Impact on Prices
-- **Objective:** Investigate how the density of listings in a neighborhood (calculated as listings per square mile) affects the average listing prices.
-- **Output:** Save a report showing neighborhoods, listing density, and average listing prices.
+### 19. Top Revenue-Contributing Neighborhood Groups  
+- **Objective:** Rank neighborhood groups by their total revenue contribution and identify the top-performing listings within each group. Analyze how listing diversity (room types and property types) and occupancy rates contribute to revenue variations across groups. Calculate average review scores, and evaluate the impact of high-revenue listings on group performance.  
+- **Output:** Save a report showing neighborhood groups, total revenue, average review scores, listing diversity (number of unique room types and property types), average occupancy rates, and average review scores.
 
 
-
-### 20. Booking Frequency of Instantly Bookable Listings
-- **Objective:** Compare the booking frequency of instantly bookable listings versus those that are not instantly bookable across different room types.
-- **Output:** Save a report showing room types, instant bookable status, and average bookings per month.
-
+### 20. Impact of Property Type on Pricing Trends  
+- **Objective:** Compare average prices across different property types and evaluate their relationship with review scores and occupancy rates. Highlight property types with the highest price-to-performance ratio and rank them by this metric to identify top-performing property types.  
+- **Output:** Save a report showing property types, average prices, average review scores, average occupancy rates, price-to-performance ratio (average price / performance score (performance score = average review score × 0.6 + average occupancy rate × 0.4)), and rank based on price-to-performance ratio.  
 
 
-### 21. Longevity of Listings and Their Performance
-- **Objective:** Examine how the longevity of a listing (time from first review to last review) relates to its total number of reviews and average review score.
-- **Output:** Save a report listing IDs, time span from first to last review, total number of reviews, and average review score.
