@@ -43,6 +43,7 @@ def get_spark_session(use_s3=False):
             )
             .config("spark.executor.memory", "16g")
             .config("spark.driver.memory", "4g")
+            .config("spark.sql.shuffle.partitions", "12")
             .config("spark.hadoop.fs.s3a.access.key", os.getenv("AWSAKEYID"))
             .config("spark.hadoop.fs.s3a.secret.key", os.getenv("AWSSECKEYID"))
             .config("spark.hadoop.fs.s3a.endpoint", "s3.amazonaws.com")
@@ -56,7 +57,7 @@ def get_spark_session(use_s3=False):
         SparkSession.builder.master("local[*]")
         .config("spark.executor.memory", "16g")
         .config("spark.driver.memory", "4g")
-        .config("spark.memory.fraction", "0.8")
+        .config("spark.sql.shuffle.partitions", "12")
         .appName("AirbnbExercises")
         .getOrCreate()
     )
@@ -74,20 +75,20 @@ def main():
         quote='"',
         escape='"',
         schema=listings_schema,
-    ).repartition(16)
+    ).repartition(12)
 
     df_calendar = spark.read.csv(
         str(parent_folder_path / "data/*_calendar*.csv.gz"),
         header=True,
         schema=calendar_schema,
-    ).repartition(16)
+    ).repartition(12)
 
     df_reviews = spark.read.csv(
         str(parent_folder_path / "data/*_reviews*.csv.gz"),
         header=True,
         multiLine=True,
         schema=reviews_schema,
-    ).repartition(16)
+    ).repartition(12)
     df_calendar = transform_calendar(df_calendar).cache()
     df_reviews = transform_reviews(df_reviews).cache()
     df_listings = transform_listings(df_listings, df_calendar).cache()

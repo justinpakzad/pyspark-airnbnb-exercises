@@ -50,7 +50,7 @@ def occupancy_rate_per_month(df_calendar, df_listings):
     )
 
     df_occ_rate = df_occ_rate.join(
-        df_listings_filtered, df_occ_rate.listing_id == df_listings.id
+        df_listings_filtered, df_occ_rate.listing_id == df_listings_filtered.id
     ).drop("id")
     return df_occ_rate
 
