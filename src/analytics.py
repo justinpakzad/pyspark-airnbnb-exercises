@@ -55,41 +55,6 @@ def occupancy_rate_per_month(df_calendar, df_listings):
     return df_occ_rate
 
 
-def most_reviewed_listings(df_reviews, df_listings):
-    """
-    Find the 10 most reviewed listings for each month.
-    Exclude listings with fewer than 20 reviews to avoid outliers.
-    """
-    window = Window.orderBy(f.desc("review_count")).partitionBy("month")
-
-    df_reviews_filtered = (
-        df_reviews.select("listing_id")
-        .groupBy("listing_id")
-        .count()
-        .filter(f.col("count") > 20)
-    ).drop("count")
-
-    df_reviews_filtered = df_reviews_filtered.join(
-        df_reviews, df_reviews_filtered.listing_id == df_reviews.listing_id
-    ).drop(df_reviews.listing_id)
-    df_listings_filtered = df_listings.select("id", "neighbourhood", "property_type")
-    df_top_listings_review = (
-        df_reviews_filtered.groupBy(
-            "listing_id", f.date_format("date", "MMMM").alias("month")
-        )
-        .agg(f.count("id").alias("review_count"))
-        .withColumn("rnk", f.dense_rank().over(window))
-        .filter(f.col("rnk") <= 10)
-        .join(
-            df_listings_filtered,
-            df_reviews_filtered.listing_id == df_listings_filtered.id,
-            how="inner",
-        )
-        .drop(df_listings.id)
-    )
-    return df_top_listings_review
-
-
 def top_5_listings_by_avg_price_monthly(df_listings, df_calendar, df_reviews):
     """
     Identify the top 5 listings with the highest average price for each month.
@@ -177,9 +142,8 @@ def most_reviewed_listings(df_reviews, df_listings):
         .filter(f.col("count") > 20)
     ).drop("count")
 
-    df_reviews_filtered = df_reviews_filtered.join(
-        df_reviews, df_reviews_filtered.listing_id == df_reviews.listing_id
-    ).drop(df_reviews.listing_id)
+    df_reviews_filtered = df_reviews_filtered.join(df_reviews, "listing_id")
+
     df_listings_filtered = df_listings.select("id", "neighbourhood", "property_type")
     df_top_listings_review = (
         df_reviews_filtered.groupBy(
@@ -219,15 +183,13 @@ def top_five_host_avgs(df_listings, df_calendar):
         (
             df_top_5_hosts.join(
                 df_listings_filtered,
-                df_top_5_hosts.host_id == df_listings_filtered.host_id,
+                "host_id",
                 how="inner",
-            )
-            .join(
+            ).join(
                 df_median_prices,
-                df_listings_filtered.listing_id == df_median_prices.listing_id,
+                "listing_id",
                 how="inner",
             )
-            .drop(df_listings_filtered.host_id)
         )
         .groupBy("host_id")
         .agg(f.round(f.mean("price"), 2).alias("avg_price"))
@@ -287,7 +249,7 @@ def monthly_revenue_per_neighbourhood(df_listings, df_calendar):
 
     df_monthly_rev = df_calendar_neighbourhood.join(
         df_yearly_variance,
-        df_calendar_neighbourhood.neighbourhood == df_yearly_variance.neighbourhood,
+        "neighbourhood",
         how="inner",
     ).drop(df_yearly_variance.neighbourhood)
 
@@ -319,7 +281,7 @@ def lowest_occupancy_rate_and_review_scores(df_reviews, df_listings, df_calendar
         )
         .join(
             df_occ_rates,
-            df_reviews_filtered.listing_id == df_occ_rates.listing_id,
+            "listing_id",
             how="inner",
         )
         .drop(df_reviews_filtered.listing_id, df_listings_filtered.id)
@@ -379,11 +341,7 @@ def neighbourhood_amenity_clusters_and_price(df_listings):
     )
 
     df_amenity_binned = (
-        df_listings_filtered.join(
-            df_amenity_binned,
-            df_listings_filtered.neighbourhood == df_amenity_binned.neighbourhood,
-        )
-        .drop(df_amenity_binned.neighbourhood)
+        df_listings_filtered.join(df_amenity_binned, "neighbourhood", how="inner")
         .groupBy("avg_amenities_bin")
         .agg(
             f.round(f.mean("price"), 2).alias("avg_price"),
@@ -442,9 +400,7 @@ def room_type_price_trends_by_season(df_listings, df_calendar):
         )
         .drop("max_avg_price", "min_avg_price")
     )
-    df_seasons = df_seasons.join(
-        df_seasonal_diffs, df_seasons.room_type == df_seasonal_diffs.room_type
-    ).drop(df_seasonal_diffs.room_type)
+    df_seasons = df_seasons.join(df_seasonal_diffs, "room_type")
     return df_seasons
 
 
@@ -463,10 +419,7 @@ def hosts_with_most_listing_types(df_listings):
 
     df_listings_filtered = df_listings.select("host_id", "property_type")
     df_top_5_hosts_by_p_types = (
-        df_listings_filtered.join(
-            df_diverse_hosts, df_diverse_hosts.host_id == df_listings_filtered.host_id
-        )
-        .drop(df_listings_filtered.host_id)
+        df_listings_filtered.join(df_diverse_hosts, "host_id")
         .groupBy("host_id", "property_type")
         .agg(f.count("property_type").alias("n_properties"))
     )
@@ -571,9 +524,8 @@ def listings_binned_with_stats(df_listings, df_calendar):
         "review_scores_communication",
         "review_scores_location",
     )
-    df_avg_prices_binned = df_avg_prices_binned.join(
-        df_occ_rate, df_avg_prices_binned.listing_id == df_occ_rate.listing_id
-    ).drop(df_occ_rate.listing_id)
+    df_avg_prices_binned = df_avg_prices_binned.join(df_occ_rate, "listing_id")
+
     df_avg_prices_binned_with_score = (
         df_avg_prices_binned.join(
             df_review_scores, df_review_scores.id == df_avg_prices_binned.listing_id
@@ -705,13 +657,10 @@ def host_verification_performance(df_listings, df_calendar):
     )
 
     df_hosts_performance = df_host_avg_monthly_occ_rate.join(
-        df_host_avg_monthly_rev,
-        df_host_avg_monthly_occ_rate.host_id == df_host_avg_monthly_rev.host_id,
-    ).drop(df_host_avg_monthly_rev.host_id)
+        df_host_avg_monthly_rev, "host_id"
+    )
 
-    df_hosts_performance = df_hosts_performance.join(
-        df_hosts_agged, df_hosts_performance.host_id == df_hosts_agged.host_id
-    ).drop(df_hosts_performance.host_id)
+    df_hosts_performance = df_hosts_performance.join(df_hosts_agged, "host_id")
 
     return df_hosts_performance.select(
         "host_id",
@@ -848,9 +797,7 @@ def property_type_trends(df_listings, df_calendar):
     df_listings_filtered = df_listings.select(
         "property_type", "id", "review_scores_rating"
     )
-    df_prices_occ_rate = df_occ_rate.join(
-        df_avg_prices, df_occ_rate.listing_id == df_avg_prices.listing_id
-    ).drop(df_avg_prices.listing_id)
+    df_prices_occ_rate = df_occ_rate.join(df_avg_prices, "listing_id")
 
     df_property_type_agged = (
         df_listings_filtered.join(

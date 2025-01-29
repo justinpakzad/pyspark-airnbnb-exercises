@@ -5,3 +5,4 @@ reports
 data
 .pytest_cache
 .env
+oop_rewrite
