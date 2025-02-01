@@ -1,11 +1,12 @@
 import logging
 import boto3
 from botocore.exceptions import ClientError
-from io import StringIO, BytesIO
 from analytics import *
+import logging
 
 
 def get_dataframes(df_reviews, df_listings, df_calendar):
+    logging.info("Fetching DataFrames...")
     dataframes = {
         "top_5_listings_by_avg_price": top_5_listings_by_avg_price_monthly(
             df_listings, df_calendar, df_reviews
@@ -53,6 +54,7 @@ def get_dataframes(df_reviews, df_listings, df_calendar):
         ),
         "property_type_trends": property_type_trends(df_listings, df_calendar),
     }
+    logging.info("DataFrames Successfully Fetched")
     return dataframes
 
 

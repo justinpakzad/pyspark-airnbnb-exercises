@@ -103,9 +103,11 @@ def main():
 
     for file_name, dataframe in dataframes.items():
         if args.write_to_s3:
+            logging.info("Writing Files to S3")
             write_df_to_s3(df=dataframe, bucket="pyspark-airbnb", file_name=file_name)
             shutil.rmtree(tmp_folder_path)
         else:
+            logging.info("Writing Files Locally (To Disk)")
             write_df_to_csv(df=dataframe, folder=data_folder, file_name=file_name)
             clean_folder(data_folder)
             rename_files(data_folder)

@@ -4,6 +4,7 @@ from pyspark.sql.types import (
     FloatType,
     ArrayType,
 )
+import logging
 
 
 def convert_price_col(df):
@@ -140,6 +141,7 @@ def bin_column_by_quantile(df, column_to_bin):
 
 
 def transform_listings(df_listings, df_calendar):
+    logging.info("Starting Listings Transformations..")
     bool_cols_to_convert = [
         "has_availability",
         "host_has_profile_pic",
@@ -157,16 +159,20 @@ def transform_listings(df_listings, df_calendar):
     df_listings = coalesce_prices(
         df_listings=df_listings, df_calendar=df_calendar, columns=None
     )
+    logging.info("Listings Transformations Succesfully Completed")
     return df_listings
 
 
 def transform_calendar(df_calendar):
+    logging.info("Starting Calendar Transformations..")
     df_calendar = convert_price_col(df=df_calendar)
     df_calendar = convert_text_to_bool(df=df_calendar, cols=["available"])
+    logging.info("Calendar Transformations Succesfully Completed")
     return df_calendar
 
 
 def transform_reviews(df_reviews):
+    logging.info("Starting Reviews Transformations..")
     df_reviews = (
         df_reviews.withColumns(
             {c: f.col(c).cast("long") for c in df_reviews.columns if "id" in c}
@@ -183,4 +189,5 @@ def transform_reviews(df_reviews):
             ),
         )
     )
+    logging.info("Review Transformations Succesfully Completed")
     return df_reviews
